@@ -12,8 +12,12 @@ def cartoonize():
         video = request.files['video']
         video_path = f'static/{video.filename}'
         video.save(video_path)
-        
+        print(f"Video saved to {video_path}")
+
         cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise Exception("Error opening video file")
+        
         output_path = f"static/output_{video.filename}"
         
         # Cartoon effect processing
@@ -30,8 +34,12 @@ def cartoonize():
             # Write to output video (consider using VideoWriter for actual video output)
             cv2.imwrite(output_path, cartoon)
         
+        cap.release()  # Release the video capture object
+        print(f"Processed video saved to {output_path}")
+
         return send_file(output_path, as_attachment=True)
     except Exception as e:
+        print(f"Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":

@@ -23,7 +23,7 @@ def cartoonize():
         if not cap.isOpened():
             raise Exception("Error opening video file")
         
-        output_path = f"static/output_{video.filename}"
+        output_path = f"static/output_{os.path.splitext(video.filename)[0]}.jpg"
         
         # Cartoon effect processing
         while cap.isOpened():
@@ -36,7 +36,7 @@ def cartoonize():
             color = cv2.bilateralFilter(frame, 9, 250, 250)
             cartoon = cv2.bitwise_and(color, color, mask=edges)
             
-            # Write to output video (consider using VideoWriter for actual video output)
+            # Write to output image
             cv2.imwrite(output_path, cartoon)
         
         cap.release()  # Release the video capture object

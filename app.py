@@ -4,48 +4,62 @@ import cv2
 import os
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+
+# Allow requests only from your frontend domain
+CORS(app, resources={r"/cartoonize": {"origins": "https://my-cartoon-effect-app.onrender.com"}})
 
 @app.route('/cartoonize', methods=['POST'])
 def cartoonize():
     try:
+        if 'video' not in request.files:
+            return jsonify({'error': 'No video file provided'}), 400
+
         video = request.files['video']
         video_path = f'static/{video.filename}'
-        
+
         # Ensure the static directory exists
         if not os.path.exists('static'):
             os.makedirs('static')
-        
+
         video.save(video_path)
         print(f"Video saved to {video_path}")
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise Exception("Error opening video file")
-        
-        output_path = f"static/output_{os.path.splitext(video.filename)[0]}.jpg"
-        
-        # Cartoon effect processing
+
+        # Get video properties
+        frame_width = int(cap.get(3))
+        frame_height = int(cap.get(4))
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+        output_path = f"static/output_{os.path.splitext(video.filename)[0]}.mp4"
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use MP4 codec
+        out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
+
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
+
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             blurred = cv2.medianBlur(gray, 5)
             edges = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 9)
             color = cv2.bilateralFilter(frame, 9, 250, 250)
             cartoon = cv2.bitwise_and(color, color, mask=edges)
-            
-            # Write to output image
-            cv2.imwrite(output_path, cartoon)
-        
-        cap.release()  # Release the video capture object
+
+            out.write(cartoon)  # Write frame to output video
+
+        cap.release()
+        out.release()
+
         print(f"Processed video saved to {output_path}")
 
         return send_file(output_path, as_attachment=True)
+
     except Exception as e:
         print(f"Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=10000, debug=True)

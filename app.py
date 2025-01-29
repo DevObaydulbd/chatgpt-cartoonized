@@ -4,18 +4,13 @@ import cv2
 import os
 
 app = Flask(__name__)
-
-# Allow all origins (for testing). You can restrict it later.
-CORS(app, resources={r"/*": {"origins": "*"}})  
+CORS(app, resources={r"/cartoonize": {"origins": "*"}})  # Allow requests from any origin
 
 @app.route('/cartoonize', methods=['POST'])
 def cartoonize():
     try:
-        if 'video' not in request.files:
-            return jsonify({'error': 'No video file provided'}), 400
-
         video = request.files['video']
-        video_path = f'static/{video.filename}'
+        video_path = os.path.join('static', video.filename)
 
         if not os.path.exists('static'):
             os.makedirs('static')
@@ -25,37 +20,23 @@ def cartoonize():
 
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
-            raise Exception("Error opening video file")
+            return jsonify({'error': "Error opening video file"}), 500
 
-        # Get video properties
-        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        output_path = f"static/output_{os.path.splitext(video.filename)[0]}.jpg"
 
-        output_path = f"static/output_{os.path.splitext(video.filename)[0]}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
-
-        while True:
+        while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-
-            if frame is None:
-                print("Skipping invalid frame")
-                continue  # Skip processing if frame is empty
-
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             blurred = cv2.medianBlur(gray, 5)
             edges = cv2.adaptiveThreshold(blurred, 255, cv2.ADAPTIVE_THRESH_MEAN_C, cv2.THRESH_BINARY, 9, 9)
             color = cv2.bilateralFilter(frame, 9, 250, 250)
             cartoon = cv2.bitwise_and(color, color, mask=edges)
 
-            out.write(cartoon)
+            cv2.imwrite(output_path, cartoon)
 
         cap.release()
-        out.release()
-
         print(f"Processed video saved to {output_path}")
 
         return send_file(output_path, as_attachment=True)

@@ -5,8 +5,8 @@ import os
 
 app = Flask(__name__)
 
-# Allow requests only from your frontend domain
-CORS(app, resources={r"/cartoonize": {"origins": "https://my-cartoon-effect-app.onrender.com"}})
+# Allow all origins (for testing). You can restrict it later.
+CORS(app, resources={r"/*": {"origins": "*"}})  
 
 @app.route('/cartoonize', methods=['POST'])
 def cartoonize():
@@ -17,7 +17,6 @@ def cartoonize():
         video = request.files['video']
         video_path = f'static/{video.filename}'
 
-        # Ensure the static directory exists
         if not os.path.exists('static'):
             os.makedirs('static')
 
@@ -29,18 +28,22 @@ def cartoonize():
             raise Exception("Error opening video file")
 
         # Get video properties
-        frame_width = int(cap.get(3))
-        frame_height = int(cap.get(4))
+        frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = int(cap.get(cv2.CAP_PROP_FPS))
 
         output_path = f"static/output_{os.path.splitext(video.filename)[0]}.mp4"
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use MP4 codec
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(output_path, fourcc, fps, (frame_width, frame_height))
 
-        while cap.isOpened():
+        while True:
             ret, frame = cap.read()
             if not ret:
                 break
+
+            if frame is None:
+                print("Skipping invalid frame")
+                continue  # Skip processing if frame is empty
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             blurred = cv2.medianBlur(gray, 5)
@@ -48,7 +51,7 @@ def cartoonize():
             color = cv2.bilateralFilter(frame, 9, 250, 250)
             cartoon = cv2.bitwise_and(color, color, mask=edges)
 
-            out.write(cartoon)  # Write frame to output video
+            out.write(cartoon)
 
         cap.release()
         out.release()

@@ -11,6 +11,11 @@ def cartoonize():
     try:
         video = request.files['video']
         video_path = f'static/{video.filename}'
+        
+        # Ensure the static directory exists
+        if not os.path.exists('static'):
+            os.makedirs('static')
+        
         video.save(video_path)
         print(f"Video saved to {video_path}")
 
